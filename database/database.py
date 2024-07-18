@@ -3,9 +3,6 @@ from json import dumps
 from config import database_args
 
 
-users_db = {}
-
-
 class Database:
     def __init__(self):
         self.conn_args = database_args()
