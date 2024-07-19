@@ -88,13 +88,13 @@ class Database:
         result = self.get_row_by_query(query, values)
         return result
 
-    def is_key_exists(self, doc_id: int, key: str) -> str:
+    def is_key_exists(self, doc_id: int, key: str) -> bool:
         query = "SELECT content ? %s FROM docs WHERE doc_id = %s;"
         values = (key, str(doc_id))
         result = self.get_row_by_query(query, values)
         return result[0]
 
-    def is_bookmark_exists(self, user_id: int, key: str) -> str:
+    def is_bookmark_exists(self, user_id: int, key: str) -> bool:
         query = "SELECT bookmarks ? %s FROM users WHERE user_id = %s;"
         values = (key, str(user_id))
         result = self.get_row_by_query(query, values)
@@ -116,6 +116,13 @@ class Database:
         result = self.get_row_by_query(query, values)
         doc_data = result[0]
         return doc_data
+
+    def bookmarks_counter(self, user_id: int) -> int:
+        query = "SELECT (SELECT count(*) FROM jsonb_object_keys(bookmarks)) obj_keys FROM users WHERE user_id = %s;"
+        values = (user_id,)
+        result = self.get_row_by_query(query, values)
+        counter = result[0]
+        return counter
 
 
 bot_database = Database()

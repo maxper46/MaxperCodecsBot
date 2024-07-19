@@ -24,7 +24,11 @@ LEXICON: dict[str, str] = {
                     'страницы\n\n/continue - продолжить чтение\n'
                     '/select - выбрать нормативный акт',
     'cancel_text': '/continue - продолжить чтение\n'
-                   '/select - выбрать нормативный акт'
+                   '/select - выбрать нормативный акт',
+    'bookmark_added': 'Страница добавлена в закладки',
+    'already_added': 'Закладка уже создана',
+    'many_bookmarks': 'Количество закладок не должно превышать 30.'
+
 }
 
 LEXICON_COMMANDS: dict[str, str] = {

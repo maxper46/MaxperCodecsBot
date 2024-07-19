@@ -204,15 +204,18 @@ async def process_previous_document(callback: CallbackQuery):
 # с номером текущей страницы и добавлять текущую страницу в закладки
 @router.callback_query(lambda x: '/' in x.data and x.data.replace('/', '').isdigit())
 async def process_page_press(callback: CallbackQuery):
-    current_doc, current_article, current_page = db.get_current_info(callback.from_user.id)
-    key = ' '.join([str(current_doc), current_article, str(current_page)])
-    if db.is_bookmark_exists(callback.from_user.id, key):
-        await callback.answer('Закладка уже создана')
+    if db.bookmarks_counter(callback.from_user.id) < 30:
+        current_doc, current_article, current_page = db.get_current_info(callback.from_user.id)
+        key = ' '.join([str(current_doc), current_article, str(current_page)])
+        if db.is_bookmark_exists(callback.from_user.id, key):
+            await callback.answer(LEXICON['already_added'])
+        else:
+            doc_title = db.get_doc_data(current_doc, 'doc_title')
+            bookmark = f'{doc_title}, ст. {current_article}'
+            db.add_bookmark(callback.from_user.id, key, bookmark)
+            await callback.answer(LEXICON['bookmark_added'])
     else:
-        doc_title = db.get_doc_data(current_doc, 'doc_title')
-        bookmark = f'{doc_title}, ст. {current_article}'
-        db.add_bookmark(callback.from_user.id, key, bookmark)
-        await callback.answer('Страница добавлена в закладки!')
+        await callback.answer(LEXICON['many_bookmarks'])
 
 
 # Этот хэндлер будет срабатывать на нажатие инлайн-кнопки
@@ -225,7 +228,7 @@ async def process_bookmark_press(callback: CallbackQuery,
     key = list(bookmarks.keys())[index]
     current_doc, current_article, current_page = key.split()
     current_doc, current_page = int(current_doc), int(current_page)
-    db.set_current_doc(current_doc, current_article, current_page)
+    db.set_current_doc(callback.from_user.id, current_doc, current_article, current_page)
     doc = db.get_doc_data(current_doc, current_article)
     text = f'Статья {current_article}. {doc['title']}\n\n{doc['text']}'
     article = prepare_article(text)
