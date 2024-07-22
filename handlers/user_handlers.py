@@ -133,7 +133,7 @@ async def process_category_press(callback: CallbackQuery,
     doc_title = db.get_doc_data(index, 'doc_title')
     first_number = db.get_doc_data(index, 'first_number')
     last_number = db.get_doc_data(index, 'last_number')
-    await callback.message.answer(text=f'{doc_title}\n\n'
+    await callback.message.edit_text(text=f'{doc_title}\n\n'
                                   'Введите номер статьи, которую хотите посмотреть\n'
                                   f'от {first_number} до {last_number}\n'
                                   'Введите /select, чтобы выбрать другой документ.\n'
