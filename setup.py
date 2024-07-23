@@ -1,27 +1,38 @@
 #!/usr/bin/env python
 
 import psycopg2
-from psycopg2.extensions import ISOLATION_LEVEL_AUTOCOMMIT
+from psycopg2.extensions import ISOLATION_LEVEL_AUTOCOMMIT, connection
 from json import dumps
-from database.database import bot_database as db
 from config import database_args
 from files import get_links, prepare_dict, load_base_page, load_codecses, BASE_URL
 
 
-def create_base() -> None:
+def create_connect() -> connection:
     args = database_args()
     try:
         conn = psycopg2.connect(**args)
     except psycopg2.OperationalError:
-        conn = psycopg2.connect(user=args['user'], password=args['password'])
-        conn.set_isolation_level(ISOLATION_LEVEL_AUTOCOMMIT)
-        with conn.cursor() as curs:
-            sql_create_database = f'CREATE DATABASE {args["dbname"]}'
-            curs.execute(sql_create_database)
+        create_base(args)
+        conn = psycopg2.connect(**args)
+    return conn
+
+
+def create_base(args: dict) -> None:
+    conn = psycopg2.connect(user=args['user'], password=args['password'])
+    conn.set_isolation_level(ISOLATION_LEVEL_AUTOCOMMIT)
+    with conn.cursor() as curs:
+        sql_create_database = f'CREATE DATABASE {args["dbname"]}'
+        curs.execute(sql_create_database)
     conn.close()
 
 
-def create_tables() -> None:
+def execute_query_and_commit(conn: connection, query, values=None):
+    with conn.cursor() as cursor:
+        cursor.execute(query, values)
+        conn.commit()
+
+
+def create_tables(connect: connection) -> None:
     query = '''
     drop table if exists users;
     drop table if exists docs;
@@ -44,10 +55,10 @@ def create_tables() -> None:
         CONSTRAINT fkkey_users_current_doc FOREIGN KEY (current_doc) REFERENCES public.docs (doc_id)
     );
 '''
-    db.execute_query_and_commit(query)
+    execute_query_and_commit(connect, query)
 
 
-def fill_docs_table(filenames: list):
+def fill_docs_table(connect, filenames: list):
     for filename in filenames:
         if 'pdd_rf' in filename:
             continue
@@ -60,13 +71,14 @@ def fill_docs_table(filenames: list):
                     VALUES (%s, %s, %s);
                     '''
         values = (doc_title, filename, content)
-        db.execute_query_and_commit(query, values)
+        execute_query_and_commit(connect, query, values)
 
 
 if __name__ == '__main__':
-    create_base()
-    create_tables()
+    connect = create_connect()
+    create_tables(connect)
     load_base_page(BASE_URL)
     links = get_links()
     load_codecses(links)
-    fill_docs_table(list(links.keys()))
+    fill_docs_table(connect, list(links.keys()))
+    connect.close()

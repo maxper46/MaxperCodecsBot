@@ -17,9 +17,9 @@ class Config:
 class DatabaseConfig:
     db_user: str
     db_password: str
+    db_name: str
     db_host: str = '127.0.0.1'
     db_port: str = '5432'
-    db_name: str = 'bot_users'
 
 
 def load_config(path: str | None = None) -> Config:
@@ -33,7 +33,8 @@ def database_args(path: str | None = None) -> dict:
     env.read_env(path)
     db_config = DatabaseConfig(
         db_user=env('DB_USER'),
-        db_password=env('DB_PASS')
+        db_password=env('DB_PASS'),
+        db_name=env('DB_NAME')
     )
     return {'host': db_config.db_host, 'port': db_config.db_port, 'dbname': db_config.db_name,
             'user': db_config.db_user, 'password': db_config.db_password}
