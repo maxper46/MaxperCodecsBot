@@ -1,4 +1,4 @@
-from aiogram import F, Router
+from aiogram import F, Router, Bot
 from aiogram.filters import Command, CommandStart
 from aiogram.types import CallbackQuery, Message
 
@@ -25,7 +25,7 @@ async def process_start_command(message: Message):
     await message.answer(LEXICON[message.text])
     if not db.is_user_exists(message.from_user.id):
         db.create_if_not_exists(user_id=message.from_user.id, current_doc=1, current_art='1',
-                                current_page=1, bookmarks={})
+                                current_page=1, current_message_id=0, bookmarks={})
 
 
 # Этот хэндлер будет срабатывать на команду "/help"
@@ -39,18 +39,22 @@ async def process_help_command(message: Message):
 # и отправлять пользователю страницу книги, на которой пользователь
 # остановился в процессе взаимодействия с ботом
 @router.message(Command(commands='continue'))
-async def process_continue_command(message: Message):
+async def process_continue_command(message: Message, bot: Bot):
+    current_message_id = db.get_current_message_id(message.from_user.id)
+    if current_message_id:
+        await bot.edit_message_reply_markup(message_id=current_message_id, chat_id=message.chat.id)
     current_doc, current_article, current_page = db.get_current_info(message.from_user.id)
     doc = db.get_doc_data(current_doc, current_article)
     text = f'Статья {current_article}. {doc['title']}\n\n{doc['text']}'
     article = prepare_article(text)
     buttons = buttons_gen(current_page, len(article), doc['prev'], doc['next'])
-    await message.answer(
+    mess = await message.answer(
         text=article[current_page],
         reply_markup=create_pagination_keyboard(
             *buttons
         )
     )
+    db.set_current_message_id(message.from_user.id, mess.message_id)
 
 
 # Этот хэндлер будет срабатывать на команду "/select"
@@ -142,7 +146,10 @@ async def process_category_press(callback: CallbackQuery,
 
 # Этот хэндлер выводит выбранную пользователем статью
 @router.message(IsArticleNumberCorrectMessageData())
-async def process_document_load(message: Message):
+async def process_document_load(message: Message, bot: Bot):
+    current_message_id = db.get_current_message_id(message.from_user.id)
+    if current_message_id:
+        await bot.edit_message_reply_markup(message_id=current_message_id, chat_id=message.chat.id, reply_markup=None)
     article_numb = str(message.text)
     db.set_current_art(message.from_user.id, article_numb)
     current_doc, current_article, current_page = db.get_current_info(message.from_user.id)
@@ -150,12 +157,13 @@ async def process_document_load(message: Message):
     text = f'Статья {current_article}. {doc['title']}\n\n{doc['text']}'
     article = prepare_article(text)
     buttons = buttons_gen(current_page, len(article), doc['prev'], doc['next'])
-    await message.answer(
+    mess = await message.answer(
         text=article[current_page],
         reply_markup=create_pagination_keyboard(
             *buttons
         )
     )
+    db.set_current_message_id(message.from_user.id, mess.message_id)
 
 
 # Этот хендлер будет срабатывать на нажатие инлайн-кнопки "Предыдущая"
@@ -222,7 +230,10 @@ async def process_page_press(callback: CallbackQuery):
 # с закладкой из списка закладок
 @router.callback_query(ButtonCallbackFactory.filter(F.category == 2))
 async def process_bookmark_press(callback: CallbackQuery,
-                                 callback_data: ButtonCallbackFactory):
+                                 callback_data: ButtonCallbackFactory, bot: Bot):
+    current_message_id = db.get_current_message_id(callback.from_user.id)
+    if current_message_id:
+        await bot.edit_message_reply_markup(message_id=current_message_id, chat_id=callback.message.chat.id)
     index = callback_data.index
     bookmarks = db.get_bookmarks(callback.from_user.id)
     key = list(bookmarks.keys())[index]
@@ -233,12 +244,13 @@ async def process_bookmark_press(callback: CallbackQuery,
     text = f'Статья {current_article}. {doc['title']}\n\n{doc['text']}'
     article = prepare_article(text)
     buttons = buttons_gen(current_page, len(article), doc['prev'], doc['next'])
-    await callback.message.edit_text(
+    mess = await callback.message.edit_text(
         text=article[current_page],
         reply_markup=create_pagination_keyboard(
             *buttons
         )
     )
+    db.set_current_message_id(callback.from_user.id, mess.message_id)
 
 
 # Этот хэндлер будет срабатывать на нажатие инлайн-кнопки

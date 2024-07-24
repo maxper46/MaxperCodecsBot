@@ -51,6 +51,7 @@ def create_tables(connect: connection) -> None:
         current_doc integer,
         current_art varchar,
         current_page integer,
+        current_message_id integer,
         bookmarks jsonb,
         CONSTRAINT fkkey_users_current_doc FOREIGN KEY (current_doc) REFERENCES public.docs (doc_id)
     );

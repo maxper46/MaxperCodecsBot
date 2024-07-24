@@ -43,14 +43,15 @@ class Database:
             current_doc: int | None,
             current_art: str,
             current_page: int,
+            current_message_id: int,
             bookmarks: dict
     ) -> None:
         query = '''
-        INSERT INTO users (user_id, current_doc, current_art, current_page,  bookmarks)
-        VALUES (%s, %s, %s, %s, %s);
+        INSERT INTO users (user_id, current_doc, current_art, current_page, current_message_id, bookmarks)
+        VALUES (%s, %s, %s, %s, %s, %s);
         '''
         bookmarks_json = dumps(bookmarks)
-        values = (user_id, current_doc, current_art, current_page, bookmarks_json)
+        values = (user_id, current_doc, current_art, current_page, current_message_id, bookmarks_json)
 
         self.execute_query_and_commit(query, values)
 
@@ -81,6 +82,17 @@ class Database:
         values = (user_id,)
         result = self.get_row_by_query(query, values)
         return result
+
+    def get_current_message_id(self, user_id: int) -> int:
+        query = "SELECT current_message_id FROM users WHERE user_id = %s;"
+        values = (user_id,)
+        result = self.get_row_by_query(query, values)
+        return result[0]
+
+    def set_current_message_id(self, user_id: int, message_id: int) -> None:
+        query = "UPDATE users SET current_message_id = %s WHERE user_id = %s;"
+        values = (message_id, user_id)
+        self.execute_query_and_commit(query, values)
 
     def get_current_doc_id(self, user_id: int) -> tuple:
         query = "SELECT current_doc FROM users WHERE user_id = %s;"
