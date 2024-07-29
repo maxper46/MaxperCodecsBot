@@ -47,7 +47,7 @@ def create_tables(connect: connection) -> None:
 
     CREATE TABLE IF NOT EXISTS public.users
     (
-        user_id integer PRIMARY KEY,
+        user_id bigint PRIMARY KEY,
         current_doc integer,
         current_art varchar,
         current_page integer,
