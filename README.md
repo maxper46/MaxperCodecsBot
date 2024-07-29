@@ -38,7 +38,7 @@ git clone https://github.com/maxper46/MaxperCodecsBot.git
 ```bash
 cd MaxperCodecsBot
 python -m venv env
-source env/bin/activate
+source venv/bin/activate
 pip install -r requirements.txt
 ```
 3. Заполнить файл `.env.example` и переименовать его в `.env`.
