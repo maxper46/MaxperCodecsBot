@@ -37,7 +37,7 @@ git clone https://github.com/maxper46/MaxperCodecsBot.git
 
 ```bash
 cd MaxperCodecsBot
-python -m venv env
+python -m venv venv
 source venv/bin/activate
 pip install -r requirements.txt
 ```
