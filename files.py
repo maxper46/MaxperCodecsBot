@@ -1,18 +1,22 @@
-import requests
+import aiohttp
+import aiofiles
 import os.path
 from bs4 import BeautifulSoup as Soup
 
 
-def load_base_page(base_url: str):
-    r = requests.get(base_url)
-    with open('codecses/base_page', 'w') as file:
-        file.write(r.text)
+async def load_base_page(base_url: str) -> None:
+    async with aiohttp.ClientSession() as session:
+        async with session.get(base_url) as response:
+            r = await response.text()
+            async with aiofiles.open('codecses/base_page', 'w') as file:
+                await file.write(r)
 
 
-def get_links() -> dict:
+async def get_links() -> dict:
     codecses = {}
-    with open('codecses/base_page', 'r', encoding='utf-8') as file:
-        soup = Soup(file.read(), 'lxml')
+    async with aiofiles.open('codecses/base_page', 'r', encoding='utf-8') as file:
+        file_text = await file.read()
+        soup = Soup(file_text, 'lxml')
     data = soup.find('tbody')
     rows = data.find_all('tr')
     for row in rows[2:]:
@@ -24,25 +28,29 @@ def get_links() -> dict:
     return codecses
 
 
-def load_codecses(codecses: dict):
-    for name in codecses:
-        if not os.path.exists(name):
-            req = requests.get(codecses[name])
-            with open(name, 'wb') as file:
-                file.write(req.content)
-        else:
-            head_req = requests.request('HEAD', codecses[name])
-            if int(head_req.headers['Content-Length']) != os.path.getsize(name):
-                req = requests.get(codecses[name])
-                with open(name, 'wb') as file:
-                    file.write(req.content)
+async def load_codecses(codecses: dict, update: bool = False) -> list:
+    res = []
+    async with aiohttp.ClientSession() as session:
+        for name in codecses:
+            print(name)
+            async with session.get(codecses[name]) as response:
+                if not os.path.exists(name) or int(response.headers['Content-Length']) != os.path.getsize(name):
+                    if update:
+                        res.append(name)
+                    async with aiofiles.open(name, 'wb') as file:
+                        chunk = await response.content.readany()
+                        while chunk:
+                            await file.write(chunk)
+                            chunk = await response.content.readany()
+    return res if update else list(codecses.keys())
 
 
-def prepare_dict(filename: str) -> dict:
+async def prepare_dict(filename: str) -> dict:
     res_dict = {}
     art_number, art_title, section, chapter, next_art = 0, None, None, None, None
-    with open(filename, 'r', encoding='utf-8') as file:
-        soup = Soup(file.read(), 'lxml')
+    async with aiofiles.open(filename, 'r', encoding='utf-8') as file:
+        file_text = await file.read()
+        soup = Soup(file_text, 'lxml')
     doc_title = soup.find('book-title').text
     doc_date = soup.find('date').text
     data = soup.find("section", {"id": "sub_0"})

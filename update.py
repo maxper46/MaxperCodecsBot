@@ -1,25 +1,26 @@
-from json import dumps
-from files import get_links, prepare_dict, load_base_page, load_codecses, BASE_URL
-from database.database import bot_database as db
+#!/usr/bin/env python
+
+import asyncio
+from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker
+from sqlalchemy import URL
+from config import database_args
+from files import get_links, load_base_page, load_codecses, BASE_URL
+from database.methods import update_docs_table
 
 
-def fill_docs_table(filenames: list):
-    for ind, filename in enumerate(filenames):
-        if 'pdd_rf' in filename:
-            continue
-        doc_content = prepare_dict(filename)
-        tmp_title = doc_content['doc_title']
-        doc_title = tmp_title if '"' not in tmp_title else tmp_title[tmp_title.index('"') + 1:tmp_title.rindex('"')]
-        content = dumps(doc_content)
-        query = '''
-                    UPDATE docs SET filename = %s, content = %s WHERE title = %s;
-                    '''
-        values = (filename, content, doc_title)
-        db.execute_query_and_commit(query, values)
-
+async def main():
+    args = database_args()
+    await load_base_page(BASE_URL)
+    links = await get_links()
+    file_names = await load_codecses(links, update=True)
+    if file_names:
+        url_object = URL.create("postgresql+asyncpg", username=args['user'],
+                                password=args['password'], host=args['host'],
+                                port=args['port'], database=args['dbname'],)
+        engine = create_async_engine(url_object)
+        async_session = async_sessionmaker(engine)
+        await update_docs_table(async_session, file_names)
+        await engine.dispose()
 
 if __name__ == '__main__':
-    load_base_page(BASE_URL)
-    links = get_links()
-    load_codecses(links)
-    fill_docs_table(list(links.keys()))
+    asyncio.run(main())

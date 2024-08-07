@@ -1,7 +1,3 @@
-import os
-import sys
-
-
 PAGE_SIZE = 800
 
 
