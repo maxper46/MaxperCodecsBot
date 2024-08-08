@@ -32,7 +32,6 @@ async def load_codecses(codecses: dict, update: bool = False) -> list:
     res = []
     async with aiohttp.ClientSession() as session:
         for name in codecses:
-            print(name)
             async with session.get(codecses[name]) as response:
                 if not os.path.exists(name) or int(response.headers['Content-Length']) != os.path.getsize(name):
                     if update:
