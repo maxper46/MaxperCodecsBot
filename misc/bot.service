@@ -1,0 +1,16 @@
+[Unit]
+Description=MaxperCodecsBot
+After=network.target
+
+[Service]
+Type=simple
+User=username
+Group=groupname
+WorkingDirectory=/path/to/MaxperCodecsBot
+ExecStart=/path/to/MaxperCodecsBot/env/bin/python bot.py
+Restart=always
+
+[Install]
+WantedBy=multi-user.target
+
+
