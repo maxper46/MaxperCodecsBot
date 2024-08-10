@@ -22,6 +22,5 @@ class Users(Base):
     current_doc: Mapped[int] = MappedColumn(Integer, nullable=False)
     current_art: Mapped[str] = MappedColumn(String, nullable=False)
     current_page: Mapped[int] = MappedColumn(Integer, nullable=False)
-    current_message_id: Mapped[int] = MappedColumn(Integer, nullable=False)
     bookmarks: Mapped[dict[str, str]] = MappedColumn(JSONB, nullable=False)
     ForeignKeyConstraint([current_doc], [Docs.doc_id])

@@ -1,14 +1,14 @@
 from aiogram import F, Router, Bot
 from aiogram.filters import Command, CommandStart
+from aiogram.fsm.context import FSMContext
 from aiogram.types import CallbackQuery, Message
 
-from filters.filters import (IsDelBookmarkCallbackData,
-                             IsArticleNumberCorrectMessageData)
+from filters.filters import (IsDelBookmarkCallbackData, IsArticleNumberCorrectMessageData)
 from keyboards.callbacks import ButtonCallbackFactory
-from keyboards.bookmarks_kb import (create_bookmarks_keyboard,
-                                    create_edit_keyboard)
+from keyboards.bookmarks_kb import (create_bookmarks_keyboard, create_edit_keyboard)
 from keyboards.pagination_kb import create_pagination_keyboard
 from keyboards.select_kb import create_select_keyboard
+from keyboards.delete_keyboard import del_keyboard
 from lexicon.lexicon import LEXICON
 from services.file_handling import prepare_article
 from keyboards.buttons import buttons_gen
@@ -21,12 +21,13 @@ router = Router()
 # добавлять пользователя в базу данных, если его там еще не было
 # и отправлять ему приветственное сообщение
 @router.message(CommandStart())
-async def process_start_command(message: Message):
+async def process_start_command(message: Message, state: FSMContext):
     await message.answer(LEXICON[message.text])
     if_user = await db.is_user_exists(message.from_user.id)
     if not if_user:
         await db.create_if_not_exists(user_id=message.from_user.id, current_doc=1, current_art='1',
-                                      current_page=1, current_message_id=0, bookmarks={})
+                                      current_page=1, bookmarks={})
+        await state.update_data(message_id=(0, 0))
 
 
 # Этот хэндлер будет срабатывать на команду "/help"
@@ -40,10 +41,10 @@ async def process_help_command(message: Message):
 # и отправлять пользователю страницу книги, на которой пользователь
 # остановился в процессе взаимодействия с ботом
 @router.message(Command(commands='continue'))
-async def process_continue_command(message: Message, bot: Bot):
-    current_message_id = await db.get_current_message_id(message.from_user.id)
-    if current_message_id:
-        await bot.edit_message_reply_markup(message_id=current_message_id, chat_id=message.chat.id)
+async def process_continue_command(message: Message, state: FSMContext, bot: Bot):
+    data = await state.get_data()
+    current_message_id, key = data['message_id']
+    await del_keyboard(current_message_id, message.chat.id, key, bot)
     current_doc, current_article, current_page = await db.get_current_info(message.from_user.id)
     doc = await db.get_doc_data(current_doc, current_article)
     text = f'Статья {current_article}. {doc['title']}\n\n{doc['text']}'
@@ -55,42 +56,51 @@ async def process_continue_command(message: Message, bot: Bot):
             *buttons
         )
     )
-    await db.set_current_message_id(message.from_user.id, mess.message_id)
+    await state.update_data(message_id=(mess.message_id, 0))
 
 
 # Этот хэндлер будет срабатывать на команду "/select"
 # и запрашивать у пользователя документ для дальнейшей работы,
 @router.message(Command(commands='select'))
-async def process_select_command(message: Message):
+async def process_select_command(message: Message, state: FSMContext, bot: Bot):
+    data = await state.get_data()
+    current_message_id, key = data['message_id']
+    await del_keyboard(current_message_id, message.chat.id, key, bot)
     titles_list = await db.get_titles_list()
-    await message.answer(
+    mess = await message.answer(
         text=LEXICON[message.text],
         reply_markup=create_select_keyboard(
             *titles_list
             )
         )
+    await state.update_data(message_id=(mess.message_id, 1))
 
 
 # Этот хэндлер будет срабатывать на команду "/bookmarks"
 # и отправлять пользователю список сохраненных закладок,
 # если они есть или сообщение о том, что закладок нет
 @router.message(Command(commands='bookmarks'))
-async def process_bookmarks_command(message: Message):
+async def process_bookmarks_command(message: Message, state: FSMContext, bot: Bot):
+    data = await state.get_data()
+    current_message_id, key = data['message_id']
+    await del_keyboard(current_message_id, message.chat.id, key, bot)
     bookmarks = await db.get_bookmarks(message.from_user.id)
     if bookmarks:
         bookmarks_values = list(bookmarks.values())
-        await message.answer(
+        mess = await message.answer(
             text=LEXICON[message.text],
             reply_markup=create_bookmarks_keyboard(
                 *bookmarks_values
             )
         )
+        await state.update_data(message_id=(mess.message_id, 1))
     else:
         await message.answer(text=LEXICON['no_bookmarks'])
+        await state.update_data(message_id=(0, 1))
 
 
 # Этот хэндлер будет срабатывать на нажатие инлайн-кнопки "вперед"
-# во время взаимодействия пользователя с сообщением-книгой
+# во время взаимодействия пользователя с сообщением
 @router.callback_query(F.data == 'forward')
 async def process_backward_press(callback: CallbackQuery):
     current_doc, current_article, prev_page = await db.get_current_info(callback.from_user.id)
@@ -110,7 +120,7 @@ async def process_backward_press(callback: CallbackQuery):
 
 
 # Этот хэндлер будет срабатывать на нажатие инлайн-кнопки "назад"
-# во время взаимодействия пользователя с сообщением-книгой
+# во время взаимодействия пользователя с сообщением
 @router.callback_query(F.data == 'backward')
 async def process_backward_press(callback: CallbackQuery):
     current_doc, current_article, next_page = await db.get_current_info(callback.from_user.id)
@@ -133,7 +143,7 @@ async def process_backward_press(callback: CallbackQuery):
 # с названием документа из списка документов
 @router.callback_query(ButtonCallbackFactory.filter(F.category == 1))
 async def process_category_press(callback: CallbackQuery,
-                                 callback_data: ButtonCallbackFactory):
+                                 callback_data: ButtonCallbackFactory, state: FSMContext):
     index = callback_data.index
     await db.set_current_doc(callback.from_user.id, index)
     doc_title = await db.get_doc_data(index, 'doc_title')
@@ -144,14 +154,15 @@ async def process_category_press(callback: CallbackQuery,
                                           f'от {first_number} до {last_number}\n'
                                           f'Введите /select, чтобы выбрать другой документ.\n'
                                           f'Введите /start, чтобы вернуться к началу.')
+    await state.update_data(message_id=(0, 0))
 
 
 # Этот хэндлер выводит выбранную пользователем статью
 @router.message(IsArticleNumberCorrectMessageData())
-async def process_document_load(message: Message, bot: Bot):
-    current_message_id = await db.get_current_message_id(message.from_user.id)
-    if current_message_id:
-        await bot.edit_message_reply_markup(message_id=current_message_id, chat_id=message.chat.id, reply_markup=None)
+async def process_document_load(message: Message, state: FSMContext, bot: Bot):
+    data = await state.get_data()
+    current_message_id, key = data['message_id']
+    await del_keyboard(current_message_id, message.chat.id, key, bot)
     article_numb = str(message.text)
     await db.set_current_art(message.from_user.id, article_numb)
     current_doc, current_article, current_page = await db.get_current_info(message.from_user.id)
@@ -165,7 +176,7 @@ async def process_document_load(message: Message, bot: Bot):
             *buttons
         )
     )
-    await db.set_current_message_id(message.from_user.id, mess.message_id)
+    await state.update_data(message_id=(mess.message_id, 0))
 
 
 # Этот хендлер будет срабатывать на нажатие инлайн-кнопки "Предыдущая"
@@ -236,10 +247,7 @@ async def process_page_press(callback: CallbackQuery):
 # с закладкой из списка закладок
 @router.callback_query(ButtonCallbackFactory.filter(F.category == 2))
 async def process_bookmark_press(callback: CallbackQuery,
-                                 callback_data: ButtonCallbackFactory, bot: Bot):
-    current_message_id = await db.get_current_message_id(callback.from_user.id)
-    if current_message_id:
-        await bot.edit_message_reply_markup(message_id=current_message_id, chat_id=callback.message.chat.id)
+                                 callback_data: ButtonCallbackFactory, state: FSMContext):
     index = callback_data.index
     bookmarks = await db.get_bookmarks(callback.from_user.id)
     key = list(bookmarks.keys())[index]
@@ -256,7 +264,7 @@ async def process_bookmark_press(callback: CallbackQuery,
             *buttons
         )
     )
-    await db.set_current_message_id(callback.from_user.id, mess.message_id)
+    await state.update_data(message_id=(mess.message_id, 0))
 
 
 # Этот хэндлер будет срабатывать на нажатие инлайн-кнопки
