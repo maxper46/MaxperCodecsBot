@@ -5,12 +5,18 @@ import logging
 from aiogram import Bot, Dispatcher
 from aiogram.client.default import DefaultBotProperties
 from aiogram.enums import ParseMode
+from aiogram.fsm.storage.redis import RedisStorage, Redis
+from aiogram.fsm.state import State, StatesGroup
 from config import Config, load_config
 from handlers import other_handlers, user_handlers
 from keyboards.main_menu import set_main_menu
 
 
 logger = logging.getLogger(__name__)
+
+
+class UserInfo(StatesGroup):
+    message_id = State()
 
 
 async def main():
@@ -22,9 +28,11 @@ async def main():
     logger.info('Starting bot')
 
     config: Config = load_config()
+    redis: Redis = Redis(host='localhost')
+    storage = RedisStorage(redis=redis)
 
     bot = Bot(token=config.tg_bot.token, default=DefaultBotProperties(parse_mode=ParseMode.HTML))
-    dp = Dispatcher()
+    dp = Dispatcher(storage=storage)
 
     await set_main_menu(bot)
 
