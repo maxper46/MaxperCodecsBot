@@ -21,6 +21,13 @@ class DatabaseConfig:
     db_host: str = '127.0.0.1'
     db_port: str = '5432'
 
+@dataclass
+class RedisDbConfig:
+    db_number: str
+    db_host: str = '127.0.0.1'
+    db_port: int = 6379
+
+
 
 def load_config(path: str | None = None) -> Config:
     env = Env()
@@ -38,3 +45,12 @@ def database_args(path: str | None = None) -> dict:
     )
     return {'host': db_config.db_host, 'port': db_config.db_port, 'dbname': db_config.db_name,
             'user': db_config.db_user, 'password': db_config.db_password}
+
+
+def redis_db_args(path: str | None = None) -> dict:
+    env = Env()
+    env.read_env(path)
+    db_config = RedisDbConfig(
+        db_number=env('REDIS_DB_NUMBER')
+    )
+    return {'host': db_config.db_host, 'port': db_config.db_port, 'db': db_config.db_number}
