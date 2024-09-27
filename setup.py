@@ -22,7 +22,7 @@ async def main():
     await load_base_page(BASE_URL)
     links = await get_links()
     file_names = await load_codecses(links)
-    await update_docs_table(async_session, file_names, True)
+    await update_docs_table(engine, file_names)
     await engine.dispose()
 
 if __name__ == '__main__':

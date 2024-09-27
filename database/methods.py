@@ -1,5 +1,5 @@
 from sqlalchemy import URL, select, update, insert, exists
-from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine, async_sessionmaker
+from sqlalchemy.ext.asyncio import AsyncSession, AsyncEngine, create_async_engine, async_sessionmaker
 from config import database_args
 from database.models import Docs, Users
 from files import prepare_dict
@@ -120,20 +120,24 @@ async def is_doc_exists(as_session: async_sessionmaker[AsyncSession], doc_title:
         return result.scalar()
 
 
-async def update_docs_table(as_session: async_sessionmaker[AsyncSession], filenames: list,
-                            is_new: bool = False) -> None:
-    async with as_session() as session:
-        for filename in filenames:
-            if 'pdd_rf' in filename:
+async def update_docs_table(as_engine: AsyncEngine, filenames: list) -> None:
+    async_session = async_sessionmaker(as_engine)
+    async with async_session() as session:
+        stmt = select(Docs.title)
+        result = await session.execute(stmt)
+        titles = [i[0] for i in result] if result else []
+        for file_name in filenames:
+            if 'pdd_rf' in file_name:
                 continue
-            doc_content = await prepare_dict(filename)
+            doc_content = await prepare_dict(file_name)
             tmp_title = doc_content['doc_title']
             doc_title = tmp_title if '"' not in tmp_title else tmp_title[tmp_title.index('"') + 1:tmp_title.rindex('"')]
-            if is_new or not (is_exists := await is_doc_exists(as_session, doc_title)):
-                stmt = insert(Docs).values(title=doc_title, filename=filename, content=doc_content)
+            if doc_title in titles:
+                stmt = update(Docs).where(Docs.title==doc_title).values(filename=file_name, content=doc_content)
+                result = await session.execute(stmt)
             else:
-                stmt = update(Docs).values(filename=filename, content=doc_content).where(Docs.title == doc_title)
-            result = await session.execute(stmt)
+                stmt = insert(Docs).values(title=doc_title, filename=file_name, content=doc_content)
+                result = await session.execute(stmt)
         await session.commit()
 
 bot_database = Database()

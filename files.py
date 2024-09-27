@@ -28,20 +28,18 @@ async def get_links() -> dict:
     return codecses
 
 
-async def load_codecses(codecses: dict, update: bool = False) -> list:
+async def load_codecses(codecses: dict) -> list:
     res = []
     async with aiohttp.ClientSession() as session:
         for name in codecses:
             async with session.get(codecses[name]) as response:
                 if not os.path.exists(name) or int(response.headers['Content-Length']) != os.path.getsize(name):
-                    if update:
-                        res.append(name)
                     async with aiofiles.open(name, 'wb') as file:
                         chunk = await response.content.readany()
                         while chunk:
                             await file.write(chunk)
                             chunk = await response.content.readany()
-    return res if update else list(codecses.keys())
+    return list(codecses.keys())
 
 
 async def prepare_dict(filename: str) -> dict:
